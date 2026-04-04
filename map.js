@@ -1,7 +1,9 @@
 (function () {
   if (!window.L) {
     var mapElement = document.getElementById('map');
-    mapElement.textContent = 'Impossibile caricare la mappa in questo ambiente.';
+    var message = document.createElement('p');
+    message.textContent = 'Impossibile caricare la mappa in questo ambiente.';
+    mapElement.appendChild(message);
     return;
   }
 
