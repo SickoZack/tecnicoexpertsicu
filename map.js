@@ -23,7 +23,7 @@
   });
 
   L.control.layers({
-    'OpenStreetMap': openStreetMap,
+    'Stradale (OpenStreetMap)': openStreetMap,
     'Satellite': satellite,
     'Rilievo': relief
   }).addTo(map);
