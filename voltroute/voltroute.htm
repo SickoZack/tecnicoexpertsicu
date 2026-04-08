@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWix+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkR4j8NB4pW4J8f5f5Qn0xM8KkM4T2yYf8ZA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <style>
@@ -278,7 +278,7 @@
 
   <div class="toast-msg" id="toast"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
   <script>
     if (!window.L || !window.L.Routing) {
@@ -287,6 +287,14 @@
       document.getElementById('toggleStationsBtn').disabled = true;
       console.error('Leaflet o Leaflet Routing Machine non caricati');
     } else {
+    const COMPATIBLE_SOCKET_VALUES = ['yes', '1', '2', '3', '4', '5'];
+    const RECHARGE_FACTOR = 0.9;
+    const STOP_MIN_FACTOR = 0.55;
+    const STOP_MAX_FACTOR = 0.95;
+    const MAX_STATION_OFFSET_METERS = 6000;
+    const OVERPASS_TIMEOUT_SECONDS = 25;
+    const GEOLOCATION_TIMEOUT_MS = 12000;
+
     const map = L.map('map', { zoomControl: true }).setView([41.9028, 12.4964], 6);
     L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(map);
     L.tileLayer('https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}', { maxZoom: 20, opacity: 0.8 }).addTo(map);
@@ -390,7 +398,7 @@
       const key = keyMap[selected];
       const hasAnySocket = Object.keys(tags || {}).some(k => k.startsWith('socket:'));
       if (!hasAnySocket) return true;
-      return ['yes', '1', '2', '3', '4', '5'].includes(String(tags[key] || '').toLowerCase());
+      return COMPATIBLE_SOCKET_VALUES.includes(String(tags[key] || '').toLowerCase());
     }
 
     function stationPopup(st, selected = false) {
@@ -430,11 +438,11 @@
       let position = 0;
       let remaining = totalKm;
       let usableRange = autonomyKm * (chargePct / 100);
-      const rechargeRange = autonomyKm * 0.9;
+      const rechargeRange = autonomyKm * RECHARGE_FACTOR;
 
       while (remaining > usableRange) {
-        const minTarget = position + usableRange * 0.55;
-        const maxTarget = position + usableRange * 0.95;
+        const minTarget = position + usableRange * STOP_MIN_FACTOR;
+        const maxTarget = position + usableRange * STOP_MAX_FACTOR;
         let pick = compatible.find(s => !selected.includes(s) && s.alongKm > minTarget && s.alongKm <= maxTarget);
         if (!pick) pick = compatible.find(s => !selected.includes(s) && s.alongKm > position && s.alongKm <= position + usableRange);
         if (!pick) return { feasible: false, selected: [] };
@@ -453,7 +461,7 @@
       const w = Math.min(...lngs).toFixed(5);
       const n = Math.max(...lats).toFixed(5);
       const e = Math.max(...lngs).toFixed(5);
-      const query = `[out:json][timeout:25];(node["amenity"="charging_station"](${s},${w},${n},${e}););out body;`;
+      const query = `[out:json][timeout:${OVERPASS_TIMEOUT_SECONDS}];(node["amenity"="charging_station"](${s},${w},${n},${e}););out body;`;
       const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query });
       if (!res.ok) throw new Error('Errore ricerca colonnine');
       const data = await res.json();
@@ -507,7 +515,7 @@
 
           const routeCoords = route.coordinates.map(c => L.latLng(c.lat, c.lng));
           const stations = await fetchStations(routeCoords, connector);
-          const ordered = mapStationsToRoute(stations, routeCoords).filter(st => st.offsetM <= 6000);
+          const ordered = mapStationsToRoute(stations, routeCoords).filter(st => st.offsetM <= MAX_STATION_OFFSET_METERS);
           const stopPlan = planStops(totalKm, ordered, autonomyKm, chargePct);
 
           if (!stopPlan.feasible && totalKm > autonomyKm * (chargePct / 100)) {
@@ -546,7 +554,7 @@
         showToast('Posizione attuale impostata');
       }, (err) => {
         showToast(`Geolocalizzazione: ${err.message}`, true);
-      }, { enableHighAccuracy: true, timeout: 12000 });
+      }, { enableHighAccuracy: true, timeout: GEOLOCATION_TIMEOUT_MS });
     });
 
     document.getElementById('calculateBtn').addEventListener('click', calculateRoute);
