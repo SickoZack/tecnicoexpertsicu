@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoltRoute</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWix+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkR4j8NB4pW4J8f5f5Qn0xM8KkM4T2yYf8ZA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    :root {
+      --bg: #1a1e26;
+      --panel: #2a3441cc;
+      --card: #3f4a5acc;
+      --accent: #4ade80;
+      --text: #eef2f7;
+      --muted: #9fb0c3;
+      --blue: #3b82f6;
+      --red: #ef4444;
+      --yellow: #facc15;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    #app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      gap: 10px;
+      padding: 10px;
+    }
+    .glass {
+      background: var(--panel);
+      border: 1px solid #4b556333;
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 12px 30px #00000040;
+    }
+    .top-bar {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: .3px;
+      font-size: 1.2rem;
+    }
+    .brand i { color: var(--accent); }
+    .address-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .address-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 56px;
+      padding: 10px;
+      border-radius: 12px;
+      background: var(--card);
+      border: 1px solid #ffffff14;
+      cursor: pointer;
+    }
+    .address-box small { color: var(--muted); display: block; }
+    .address-box span { font-size: .88rem; }
+    .vehicle-panel {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .field {
+      display: grid;
+      gap: 6px;
+      font-size: .85rem;
+      color: var(--muted);
+    }
+    input, select, button {
+      border: 1px solid #ffffff1f;
+      background: #11161fcc;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px;
+      font: inherit;
+    }
+    .calculate-section {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+    #calculateBtn {
+      background: linear-gradient(90deg, #22c55e, var(--accent));
+      color: #06210f;
+      font-weight: 800;
+      min-height: 54px;
+      cursor: pointer;
+    }
+    #calculateBtn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    #toggleStationsBtn { min-width: 170px; }
+    .map-container {
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      min-height: 40vh;
+    }
+    #map { width: 100%; height: 100%; }
+    .route-info-overlay {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      z-index: 800;
+      display: none;
+      background: #0f141ccc;
+      border: 1px solid #ffffff2a;
+      border-radius: 14px;
+      padding: 10px;
+      backdrop-filter: blur(8px);
+      font-size: .88rem;
+    }
+    .route-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(80px, 1fr));
+      gap: 8px;
+    }
+    .stat b { color: var(--accent); }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: #020617b8;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 14px;
+    }
+    .modal {
+      width: min(650px, 100%);
+      max-height: 80vh;
+      overflow: auto;
+      padding: 14px;
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; }
+    .search-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; margin: 10px 0; }
+    .results { display: grid; gap: 6px; }
+    .result-item {
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #ffffff1f;
+      background: #111827;
+      cursor: pointer;
+    }
+    .toast-msg {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 3000;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #111827ea;
+      border: 1px solid #ffffff2a;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: .25s;
+      pointer-events: none;
+    }
+    .toast-msg.show { opacity: 1; transform: translateY(0); }
+    .leaflet-routing-container,
+    .leaflet-routing-alt,
+    .leaflet-routing-geocoders { display: none !important; }
+
+    .marker-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 3px #00000047;
+    }
+
+    @media (max-width: 880px) {
+      #app { grid-template-rows: auto auto auto 1fr; }
+      .address-row { grid-template-columns: 1fr; }
+      .vehicle-panel { grid-template-columns: 1fr 1fr; }
+      .route-grid { grid-template-columns: 1fr 1fr; }
+      .calculate-section { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Top bar: logo + selector boxes -->
+    <div class="top-bar glass">
+      <div class="brand"><i class="fa-solid fa-bolt"></i> VoltRoute</div>
+      <div class="address-row">
+        <button class="address-box" id="startBox" type="button">
+          <i class="fa-solid fa-location-dot" style="color:var(--blue)"></i>
+          <div><small>Partenza</small><span id="startLabel">Seleziona partenza</span></div>
+        </button>
+        <button class="address-box" id="endBox" type="button">
+          <i class="fa-solid fa-flag-checkered" style="color:var(--red)"></i>
+          <div><small>Destinazione</small><span id="endLabel">Seleziona destinazione</span></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Vehicle parameters panel -->
+    <div class="vehicle-panel glass">
+      <label class="field">Autonomia (km)
+        <input id="rangeKm" type="number" min="50" value="350" />
+      </label>
+      <label class="field">Carica attuale (%)
+        <input id="chargePct" type="number" min="1" max="100" value="80" />
+      </label>
+      <label class="field">Consumo (kWh/100km)
+        <input id="consumption" type="number" min="5" step="0.1" value="18" />
+      </label>
+      <label class="field">Connettore
+        <select id="connector">
+          <option>CCS</option>
+          <option>CHAdeMO</option>
+          <option selected>Type2</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- Main action buttons -->
+    <div class="calculate-section">
+      <button id="calculateBtn" disabled><i class="fa-solid fa-route"></i> CALCOLA PERCORSO OTTIMALE</button>
+      <button id="toggleStationsBtn"><i class="fa-solid fa-eye"></i> Nascondi colonnine</button>
+    </div>
+
+    <!-- Map always visible + route info overlay -->
+    <div class="map-container glass">
+      <div id="map"></div>
+      <div class="route-info-overlay" id="routeInfo">
+        <div class="route-grid">
+          <div class="stat">Distanza<br><b id="infoDistance">-</b></div>
+          <div class="stat">Durata<br><b id="infoDuration">-</b></div>
+          <div class="stat">Soste<br><b id="infoStops">-</b></div>
+          <div class="stat">Energia<br><b id="infoEnergy">-</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal glass">
+      <div class="modal-head">
+        <h3 id="modalTitle">Cerca località</h3>
+        <button id="closeModal" type="button"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="search-row">
+        <input id="searchInput" type="text" placeholder="Inserisci città, via o punto di interesse" />
+        <button id="searchBtn" type="button">Cerca</button>
+        <button id="useLocationBtn" type="button">Usa posizione attuale</button>
+      </div>
+      <div class="results" id="results"></div>
+    </div>
+  </div>
+
+  <div class="toast-msg" id="toast"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+  <script>
+    if (!window.L || !window.L.Routing) {
+      document.getElementById('map').innerHTML = '<div style="display:grid;place-items:center;height:100%;background:#0f172a;color:#cbd5e1;padding:16px;text-align:center">Impossibile caricare le librerie mappa in questo ambiente.<br>Verifica la connessione internet/CDN e ricarica la pagina.</div>';
+      document.getElementById('calculateBtn').disabled = true;
+      document.getElementById('toggleStationsBtn').disabled = true;
+      console.error('Leaflet o Leaflet Routing Machine non caricati');
+    } else {
+    const map = L.map('map', { zoomControl: true }).setView([41.9028, 12.4964], 6);
+    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(map);
+    L.tileLayer('https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}', { maxZoom: 20, opacity: 0.8 }).addTo(map);
+    setTimeout(() => map.invalidateSize(), 250);
+
+    const startLabel = document.getElementById('startLabel');
+    const endLabel = document.getElementById('endLabel');
+    const calculateBtn = document.getElementById('calculateBtn');
+    const routeInfo = document.getElementById('routeInfo');
+    const resultsEl = document.getElementById('results');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const searchInput = document.getElementById('searchInput');
+    const modalTitle = document.getElementById('modalTitle');
+
+    const allStationsLayer = L.layerGroup().addTo(map);
+    const selectedStationsLayer = L.layerGroup().addTo(map);
+
+    const state = {
+      start: null,
+      end: null,
+      activeField: null,
+      startMarker: null,
+      endMarker: null,
+      routingControl: null,
+      stationsVisible: true,
+      selectedStations: []
+    };
+
+    function showToast(text, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = text;
+      toast.style.borderColor = isError ? '#ef444466' : '#4ade8088';
+      toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove('show'), 2800);
+    }
+
+    function markerDot(color) {
+      return L.divIcon({ className: '', html: `<div class="marker-dot" style="background:${color}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+    }
+
+    function setPoint(which, item) {
+      const point = { lat: Number(item.lat), lng: Number(item.lon), name: item.display_name || item.name || 'Posizione selezionata' };
+      state[which] = point;
+      const markerColor = which === 'start' ? '#3b82f6' : '#ef4444';
+      const markerRef = which + 'Marker';
+      if (state[markerRef]) state[markerRef].remove();
+      state[markerRef] = L.marker([point.lat, point.lng], { icon: markerDot(markerColor) }).addTo(map).bindPopup(`${which === 'start' ? 'Partenza' : 'Destinazione'}<br>${point.name}`);
+      if (which === 'start') startLabel.textContent = point.name;
+      else endLabel.textContent = point.name;
+      calculateBtn.disabled = !(state.start && state.end);
+      modalOverlay.style.display = 'none';
+      map.flyTo([point.lat, point.lng], 11);
+    }
+
+    async function searchLocations() {
+      const q = searchInput.value.trim();
+      if (!q) return showToast('Inserisci un indirizzo o località', true);
+      resultsEl.innerHTML = '<div class="result-item">Ricerca in corso...</div>';
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=8&q=${encodeURIComponent(q)}`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('Errore servizio geocoding');
+        const data = await res.json();
+        if (!data.length) {
+          resultsEl.innerHTML = '<div class="result-item">Nessun risultato trovato.</div>';
+          return;
+        }
+        resultsEl.innerHTML = data.map((item, i) => `<button class="result-item" data-idx="${i}">${item.display_name}</button>`).join('');
+        [...resultsEl.querySelectorAll('[data-idx]')].forEach(btn => {
+          btn.addEventListener('click', () => setPoint(state.activeField, data[Number(btn.dataset.idx)]));
+        });
+      } catch (e) {
+        resultsEl.innerHTML = '<div class="result-item">Errore durante la ricerca.</div>';
+        showToast(e.message, true);
+      }
+    }
+
+    function openModal(field) {
+      state.activeField = field;
+      modalTitle.textContent = field === 'start' ? 'Seleziona Partenza' : 'Seleziona Destinazione';
+      resultsEl.innerHTML = '';
+      searchInput.value = '';
+      modalOverlay.style.display = 'flex';
+      setTimeout(() => searchInput.focus(), 30);
+    }
+
+    function getInputNum(id, fallback) {
+      const v = Number(document.getElementById(id).value);
+      return Number.isFinite(v) && v > 0 ? v : fallback;
+    }
+
+    function formatDuration(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.round((seconds % 3600) / 60);
+      return h ? `${h}h ${m}m` : `${m} min`;
+    }
+
+    function connectorMatches(tags, selected) {
+      const keyMap = { CCS: 'socket:ccs', CHAdeMO: 'socket:chademo', Type2: 'socket:type2' };
+      const key = keyMap[selected];
+      const hasAnySocket = Object.keys(tags || {}).some(k => k.startsWith('socket:'));
+      if (!hasAnySocket) return true;
+      return ['yes', '1', '2', '3', '4', '5'].includes(String(tags[key] || '').toLowerCase());
+    }
+
+    function stationPopup(st, selected = false) {
+      const tags = st.tags || {};
+      const sockets = Object.keys(tags).filter(k => k.startsWith('socket:') && tags[k] && tags[k] !== 'no').map(k => `${k.replace('socket:', '')}: ${tags[k]}`).join(', ') || 'n.d.';
+      const power = tags.maxpower || tags['charging_station:output'] || 'n.d.';
+      const spots = tags.capacity || tags['capacity:charging_points'] || 'n.d.';
+      return `<b>${tags.name || 'Colonnina di ricarica'}</b><br>Stato: ${selected ? 'Selezionata per il viaggio' : 'Disponibile'}<br>Potenza: ${power}<br>Posti: ${spots}<br>Connettori: ${sockets}`;
+    }
+
+    function polylineCumulativeKm(coords) {
+      let total = 0;
+      const cum = [0];
+      for (let i = 1; i < coords.length; i++) {
+        total += coords[i - 1].distanceTo(coords[i]) / 1000;
+        cum.push(total);
+      }
+      return cum;
+    }
+
+    function mapStationsToRoute(stations, routeCoords) {
+      const cum = polylineCumulativeKm(routeCoords);
+      return stations.map(st => {
+        const ll = L.latLng(st.lat, st.lon);
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < routeCoords.length; i++) {
+          const d = ll.distanceTo(routeCoords[i]);
+          if (d < bestDist) { bestDist = d; bestIdx = i; }
+        }
+        return { ...st, alongKm: cum[bestIdx], offsetM: bestDist };
+      }).sort((a, b) => a.alongKm - b.alongKm);
+    }
+
+    function planStops(totalKm, compatible, autonomyKm, chargePct) {
+      const selected = [];
+      let position = 0;
+      let remaining = totalKm;
+      let usableRange = autonomyKm * (chargePct / 100);
+      const rechargeRange = autonomyKm * 0.9;
+
+      while (remaining > usableRange) {
+        const minTarget = position + usableRange * 0.55;
+        const maxTarget = position + usableRange * 0.95;
+        let pick = compatible.find(s => !selected.includes(s) && s.alongKm > minTarget && s.alongKm <= maxTarget);
+        if (!pick) pick = compatible.find(s => !selected.includes(s) && s.alongKm > position && s.alongKm <= position + usableRange);
+        if (!pick) return { feasible: false, selected: [] };
+        selected.push(pick);
+        position = pick.alongKm;
+        remaining = totalKm - position;
+        usableRange = rechargeRange;
+      }
+      return { feasible: true, selected };
+    }
+
+    async function fetchStations(routeCoords, connector) {
+      const lats = routeCoords.map(p => p.lat);
+      const lngs = routeCoords.map(p => p.lng);
+      const s = Math.min(...lats).toFixed(5);
+      const w = Math.min(...lngs).toFixed(5);
+      const n = Math.max(...lats).toFixed(5);
+      const e = Math.max(...lngs).toFixed(5);
+      const query = `[out:json][timeout:25];(node["amenity"="charging_station"](${s},${w},${n},${e}););out body;`;
+      const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query });
+      if (!res.ok) throw new Error('Errore ricerca colonnine');
+      const data = await res.json();
+      return (data.elements || []).map(el => ({ id: el.id, lat: el.lat, lon: el.lon, tags: el.tags || {} }))
+        .filter(st => connectorMatches(st.tags, connector));
+    }
+
+    function drawStations(stations, selectedIds) {
+      allStationsLayer.clearLayers();
+      selectedStationsLayer.clearLayers();
+
+      stations.forEach(st => {
+        const chosen = selectedIds.has(st.id);
+        const icon = L.divIcon({ className: '', html: `<div style="font-size:20px;line-height:1">${chosen ? '🟢' : '⚡'}</div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
+        const marker = L.marker([st.lat, st.lon], { icon }).bindPopup(stationPopup(st, chosen));
+        marker.on('mouseover', () => marker.openPopup());
+        if (chosen) marker.addTo(selectedStationsLayer);
+        else marker.addTo(allStationsLayer);
+      });
+      if (!state.stationsVisible && map.hasLayer(allStationsLayer)) map.removeLayer(allStationsLayer);
+    }
+
+    async function calculateRoute() {
+      if (!(state.start && state.end)) return;
+
+      const autonomyKm = getInputNum('rangeKm', 350);
+      const chargePct = Math.min(100, getInputNum('chargePct', 80));
+      const consumption = getInputNum('consumption', 18);
+      const connector = document.getElementById('connector').value;
+
+      if (state.routingControl) map.removeControl(state.routingControl);
+      state.routingControl = L.Routing.control({
+        waypoints: [L.latLng(state.start.lat, state.start.lng), L.latLng(state.end.lat, state.end.lng)],
+        routeWhileDragging: false,
+        addWaypoints: false,
+        draggableWaypoints: false,
+        fitSelectedRoutes: true,
+        lineOptions: { styles: [{ color: '#4ade80', opacity: 0.95, weight: 6 }] },
+        show: false,
+        createMarker: () => null
+      }).addTo(map);
+
+      state.routingControl.on('routingerror', () => showToast('Errore calcolo percorso', true));
+
+      state.routingControl.once('routesfound', async (e) => {
+        try {
+          const route = e.routes[0];
+          const totalKm = route.summary.totalDistance / 1000;
+          const duration = route.summary.totalTime;
+          const energy = totalKm * consumption / 100;
+
+          const routeCoords = route.coordinates.map(c => L.latLng(c.lat, c.lng));
+          const stations = await fetchStations(routeCoords, connector);
+          const ordered = mapStationsToRoute(stations, routeCoords).filter(st => st.offsetM <= 6000);
+          const stopPlan = planStops(totalKm, ordered, autonomyKm, chargePct);
+
+          if (!stopPlan.feasible && totalKm > autonomyKm * (chargePct / 100)) {
+            showToast('Percorso non sicuro: colonnine compatibili insufficienti', true);
+          }
+
+          const selectedIds = new Set(stopPlan.selected.map(s => s.id));
+          state.selectedStations = stopPlan.selected;
+          drawStations(ordered, selectedIds);
+
+          document.getElementById('infoDistance').textContent = `${totalKm.toFixed(1)} km`;
+          document.getElementById('infoDuration').textContent = formatDuration(duration);
+          document.getElementById('infoStops').textContent = stopPlan.selected.length;
+          document.getElementById('infoEnergy').textContent = `${energy.toFixed(1)} kWh`;
+          routeInfo.style.display = 'block';
+
+          showToast(`Trovate ${ordered.length} colonnine compatibili (${stopPlan.selected.length} usate)`);
+          setTimeout(() => map.invalidateSize(), 200);
+        } catch (err) {
+          showToast(err.message || 'Errore durante il calcolo', true);
+        }
+      });
+    }
+
+    document.getElementById('startBox').addEventListener('click', () => openModal('start'));
+    document.getElementById('endBox').addEventListener('click', () => openModal('end'));
+    document.getElementById('closeModal').addEventListener('click', () => modalOverlay.style.display = 'none');
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.style.display = 'none'; });
+    document.getElementById('searchBtn').addEventListener('click', searchLocations);
+    searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') searchLocations(); });
+
+    document.getElementById('useLocationBtn').addEventListener('click', () => {
+      if (!navigator.geolocation) return showToast('Geolocalizzazione non supportata', true);
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setPoint(state.activeField, { lat: pos.coords.latitude, lon: pos.coords.longitude, display_name: 'Posizione attuale' });
+        showToast('Posizione attuale impostata');
+      }, (err) => {
+        showToast(`Geolocalizzazione: ${err.message}`, true);
+      }, { enableHighAccuracy: true, timeout: 12000 });
+    });
+
+    document.getElementById('calculateBtn').addEventListener('click', calculateRoute);
+    document.getElementById('toggleStationsBtn').addEventListener('click', (e) => {
+      state.stationsVisible = !state.stationsVisible;
+      if (state.stationsVisible) allStationsLayer.addTo(map);
+      else map.removeLayer(allStationsLayer);
+      e.currentTarget.innerHTML = state.stationsVisible ? '<i class="fa-solid fa-eye"></i> Nascondi colonnine' : '<i class="fa-solid fa-eye-slash"></i> Mostra colonnine';
+    });
+    }
+  </script>
+</body>
+</html>
